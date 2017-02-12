@@ -1,0 +1,1466 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+   <head>
+      <title>Bing Maps Basic Toolkit</title>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+      <script type='text/javascript' src='http://www.bing.com/api/maps/mapcontrol?branch=experimental'></script>
+  <script src="./js/overrider.js"></script>
+  <script src="./js/overrides.js"></script>
+      <script type="text/javascript">
+	  //setting some global values
+	  var resultsHeader = null;
+	  var output = null;
+	  var lines = null;
+	  var counter = null;
+	  var currentDate = null;
+	  var under24 = null;
+	  var visibleKeyVal = null;
+	  var visibleSpatJobList = null;
+	  var visibleRestUnstructured = null;
+	  var visibleRestStructured = null;
+	  var visibleV8Map = null;
+	  var visibleOverrider = null;
+	  var map = null;
+	  var pPinsUn = [];
+	  var pPinsSt = [];
+	  var pPinsOv = [];
+	 
+	  /* the following three arrays are designated to contain strings, each of which represents a location. Each string is tab-delimited, and splitting one up using split('\t') will return an array with the following structure: 
+	  index 0 = user's input
+	  index 1 = the number of the result within the result set that was returned for user's input
+	  index 2 = entity type of the result
+	  index 3 = geocoder's confidence that the match is good
+	  index 4 = lat/long coordinates for display purposes
+	  index 5 = address line of result (if present)
+	  index 6 = city/town/hamlet (if present)
+	  index 7 = Administration District (state/province)
+	  index 8 = postal code (if present)
+	  index 9 = country
+	  index 10 = Administration District 2 (county, large municipality, etc)
+	  index 11 = neighborhood (if present)
+	  index 12 = full name of result for display purposes
+	  index 13 = lat/long coordinates for routing*/
+	  var unstructuredResultSet = [];
+	  var structuredResultSet = [];
+	  var overrideResultSet = [];
+	  var iBox = null;
+	  var unstructPpinsDisplayed = false;
+	  var structPpinsDisplayed = false;
+	  var overridePpinsDisplayed = false;
+	  var directionsManager = null;
+	  //var currentCoords = null;
+	  
+	  //triggered on body load
+	  function init()
+	  {
+		//section for populating a dynamic div in the override section
+		var countOvers = 0;
+		var items = [];
+		for(var prop in overrideValues) {
+			if(overrideValues.hasOwnProperty(prop))
+			{
+				items.push(prop);
+				++countOvers;
+			}
+		}
+		document.getElementById("overrideList").innerHTML = "Total override values found: " + countOvers + "</br>";
+		for (var i = 0; i < countOvers; i++)
+		{
+			document.getElementById("overrideList").innerHTML += (i+1) + ": " + items[i] + "</br>"
+		}
+	  }
+	  //toggles visibility of the tips section in the v8 div
+	  function ToggleTips(value)
+	  {
+		document.getElementById("v8TipsDiv").style.display = value;
+		if (value == "block")
+		{
+			document.getElementById("TipsButton").style.display = "none";
+		}
+		else
+		{
+			document.getElementById("TipsButton").style.display = "block";
+		}
+	  }
+	  //div visibility handling section
+	  function toggleVisibiltiyRestUnstructured()
+	  {
+	    visibleRestUnstructured = "block";
+		visibleRestStructured = "none";
+	    visibleKeyVal = "none";
+	    visibleSpatJobList = "none";
+		visibleV8Map = "none";
+		visibleOverrider = "none"
+		toggleVisibility();
+	  }
+	  function toggleVisibiltiyRestStructured()
+	  {
+	    visibleRestStructured = "block";
+	    visibleRestUnstructured = "none";
+	    visibleKeyVal = "none";
+	    visibleSpatJobList = "none";
+		visibleV8Map = "none";
+		visibleOverrider = "none"
+		toggleVisibility();
+	  }
+	  function toggleVisibiltiyKeyVal()
+	  {
+		visibleRestStructured = "none";
+	    visibleRestUnstructured = "none";
+	    visibleKeyVal = "block";
+	    visibleSpatJobList = "none";
+		visibleV8Map = "none";
+		visibleOverrider = "none"
+		toggleVisibility();
+	  }
+	  function toggleVisibilitySpatJobList()
+	  {
+		visibleRestStructured = "none";
+	    visibleRestUnstructured = "none";
+	    visibleKeyVal = "none";
+	    visibleSpatJobList = "block";
+		visibleV8Map = "none";
+		visibleOverrider = "none"
+		toggleVisibility();
+	  }
+	  function toggleVisibiltiyMapV8()
+	  {
+		visibleRestStructured = "none";
+	    visibleRestUnstructured = "none";
+	    visibleKeyVal = "none";
+	    visibleSpatJobList = "none";
+		visibleV8Map = "block";
+		visibleOverrider = "none"
+		toggleVisibility();		
+	  }
+	  function toggleVisibiltiyOverrider()
+	  {
+		visibleRestStructured = "none";
+	    visibleRestUnstructured = "none";
+	    visibleKeyVal = "none";
+	    visibleSpatJobList = "none";
+		visibleV8Map = "none";
+		visibleOverrider = "block";
+		toggleVisibility();	
+	  }
+	  function hideAll()
+	  {
+		visibleRestStructured = "none";
+	    visibleRestUnstructured = "none";
+	    visibleKeyVal = "none";
+	    visibleSpatJobList = "none";
+		visibleV8Map = "none";
+		visibleOverrider = "none"
+		toggleVisibility();
+	  }
+	  
+	  function toggleVisibility()
+	  {
+		  document.getElementById("RESTGeocodeStructured").style.display = visibleRestStructured;
+		  document.getElementById("RESTGeocodeUnstructured").style.display = visibleRestUnstructured;
+		  document.getElementById("SpatJobListDiv").style.display = visibleSpatJobList;
+		  document.getElementById("KeyValDiv").style.display = visibleKeyVal;
+		  document.getElementById("v8mapControl").style.display = visibleV8Map;
+		  document.getElementById("GeocodeOverride").style.display = visibleOverrider;
+	  }
+	  
+	  //prep functions used to perform some actions and set some values outside of the recursion of regular functions.
+	  function prepUnstructured()
+	  {
+	    lines = document.getElementById('UnstructuredGeocodeInput').value.split('\n');
+		counter = 0;
+		document.getElementById('UnstructuredGeocodeOutput').value = "Input query\tResult number\tEntity type\tConfidence\tLatitude,Longitude\tAddress Line\tLocality\tAdmin District\tPostal code\tCountry region\tAdmin District 2\tNeighborhood\tName\tRouting Coordinates\n";
+		callRESTLocationsUnstructured();
+	  }
+	  function prepStructured()
+	  {
+		lines = document.getElementById('StructuredGeocodeInput').value.split('\n');
+		counter = 0;
+		document.getElementById('StructuredGeocodeOutput').value = "Input query\tResult number\tEntity type\tConfidence\tLatitude,Longitude\tAddress Line\tLocality\tAdmin District\tPostal code\tCountry region\tAdmin District 2\tNeighborhood\tName\tRouting Coordinates\n";
+		callRESTLocationsStructured();
+	  }
+	  function prepValidator()
+	  {
+		  lines = document.getElementById('txtInput').value.split('\n');
+		  counter = 0;
+		  document.getElementById('txtOutput').value = "Key\tnotes\tstatus code\tstatus description\n";
+		  callSearchService();
+	  }
+	  
+	  //REST Locations Unstructured Geocoding section
+	  function callRESTLocationsUnstructured()
+	  {
+		var query = lines[counter];
+		if (counter < lines.length && !(query === ""))
+		{
+			document.getElementById('UnstructuredGeocodeOutput').value += query;
+			var searchRequest = 'https://dev.virtualearth.net/REST/v1/Locations/' + query + '?output=json&jsonp=RESTLocationsUnstructuredCallback&inclnb=1&key=' + document.getElementById('GeneralKey').value;
+			var mapscript = document.createElement('script'); 
+            mapscript.type = 'text/javascript'; 
+            mapscript.src = searchRequest; 
+			document.getElementById('output').appendChild(mapscript); 
+		}
+		else if (counter < lines.length)
+		{
+			counter++;
+			callRESTLocationsUnstructured();
+		}
+	  }
+	  function RESTLocationsUnstructuredCallback(result)
+	  {
+		var query = lines[counter];
+		if (result &&
+          result.resourceSets &&
+          result.resourceSets.length > 0 &&
+          result.resourceSets[0].resources &&
+          result.resourceSets[0].resources.length > 0) 
+          {
+			for (i = 0; i < result.resourceSets[0].resources.length; i++)
+			{
+				document.getElementById('UnstructuredGeocodeOutput').value += "\t#" + (i+1) + "\t" + result.resourceSets[0].resources[i].entityType + "\t" + result.resourceSets[0].resources[i].confidence + "\t" + result.resourceSets[0].resources[i].point.coordinates;
+				if (typeof (result.resourceSets[0].resources[i].address.addressLine) == 'undefined' || result.resourceSets[0].resources[i].address.addressLine == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.addressLine;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.locality) == 'undefined' || result.resourceSets[0].resources[i].address.locality == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.locality;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.adminDistrict) == 'undefined' || result.resourceSets[0].resources[i].address.adminDistrict == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.adminDistrict;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.postalCode) == 'undefined' || result.resourceSets[0].resources[i].address.postalCode == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.postalCode;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.countryRegion) == 'undefined' || result.resourceSets[0].resources[i].address.countryRegion == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.countryRegion;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.adminDistrict2) == 'undefined' || result.resourceSets[0].resources[i].address.adminDistrict2 == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.adminDistrict2;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.neighborhood) == 'undefined' || result.resourceSets[0].resources[i].address.neighborhood == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.neighborhood;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].name) == 'undefined' || result.resourceSets[0].resources[i].name == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].name;
+				}
+				var RoutingCoords = null;
+				if (typeof (result.resourceSets[0].resources[i].geocodePoints) == 'undefined' || result.resourceSets[0].resources[i].geocodePoints == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					for (var j = 0; j < result.resourceSets[0].resources[i].geocodePoints.length; j++)
+					{
+						for (var k = 0; k < result.resourceSets[0].resources[i].geocodePoints[j].usageTypes.length; k++)
+						{
+							if (result.resourceSets[0].resources[i].geocodePoints[j].usageTypes[k] == "Route")
+							{
+								RoutingCoords = result.resourceSets[0].resources[i].geocodePoints[j].coordinates;
+							}							
+						}
+					}
+					if (RoutingCoords == null)
+					{
+						RoutingCoords = result.resourceSets[0].resources[i].point.coordinates;
+					}
+					
+					
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t" + RoutingCoords;
+				}
+				document.getElementById('UnstructuredGeocodeOutput').value += "\n";
+			}
+		  }
+		  else if (result.statusCode != 200)
+		  {
+			document.getElementById('UnstructuredGeocodeOutput').value += "\tAn error has occurred\tError details: " + result.statusDescription + "\tCode " + result.statusCode + "\tTraceID: " + result.traceId + "\n";
+		  }
+		  else 
+		  {
+			document.getElementById('UnstructuredGeocodeOutput').value += "\tNo Results\n";
+		  }
+		  if(typeof (result.resourceSets[0]) == 'undefined')
+		  {
+			counter++;
+			callRESTLocationsUnstructured();
+		  }
+		  else if (counter < lines.length)
+		  {
+			counter++;
+			callRESTLocationsUnstructured();
+		  }
+	  }
+	  
+	  //Structured REST Geocoding section
+	  function callRESTLocationsStructured()
+	  {
+		if (counter < lines.length)
+		{
+			var fragmentedInput = lines[counter].split('\t');
+		}
+		if (counter < lines.length && ((fragmentedInput[0] != "" && typeof fragmentedInput[0] != 'undefined') || (fragmentedInput[1] != "" && typeof fragmentedInput[1] != 'undefined') || (fragmentedInput[2] != "" && typeof fragmentedInput[2] != 'undefined') || (fragmentedInput[3] != "" && typeof fragmentedInput[3] != 'undefined') || (fragmentedInput[4] != "" && typeof fragmentedInput[4] != 'undefined')))
+		{
+			var containsInput = false;
+			var searchRequest = 'https://dev.virtualearth.net/REST/v1/Locations?';
+			if (!(typeof (fragmentedInput[0]) == 'undefined' || fragmentedInput[0] == null))
+			{
+				document.getElementById('StructuredGeocodeOutput').value += fragmentedInput[0];
+				searchRequest += 'addressLine=' + fragmentedInput[0];
+				containsInput = true;
+			}
+			else
+			{
+				containsInput = false;
+			}
+			if (!(typeof (fragmentedInput[1]) == 'undefined' || fragmentedInput[1] == null))
+			{
+				if (containsInput)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += ", ";
+				}
+				document.getElementById('StructuredGeocodeOutput').value += fragmentedInput[1];
+				searchRequest += '&locality=' + fragmentedInput[1];
+				containsInput = true;
+			}
+			else
+			{
+				containsInput = false;
+			}
+			if (!(typeof (fragmentedInput[2]) == 'undefined' || fragmentedInput[2] == null))
+			{
+				if (containsInput)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += ", ";
+				}
+				document.getElementById('StructuredGeocodeOutput').value += fragmentedInput[2];
+				searchRequest += '&adminDistrict=' + fragmentedInput[2];
+				containsInput = true;
+			}
+			else
+			{
+				containsInput = false;
+			}
+			if (!(typeof (fragmentedInput[3]) == 'undefined' || fragmentedInput[3] == null))
+			{
+				if (containsInput)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += " ";
+				}
+				document.getElementById('StructuredGeocodeOutput').value += fragmentedInput[3];
+				searchRequest += '&postalCode=' + fragmentedInput[3];
+				containsInput = true;
+			}
+			else
+			{
+				containsInput = false;
+			}
+			if (!(typeof (fragmentedInput[4]) == 'undefined' || fragmentedInput[4] == null))
+			{
+				if (containsInput)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += ", ";
+				searchRequest += '&countryRegion=' + fragmentedInput[4];
+				}
+				document.getElementById('StructuredGeocodeOutput').value += fragmentedInput[4];
+				containsInput = true;
+			}
+			searchRequest += '&output=json&jsonp=RESTLocationsStructuredCallback&inclnb=1&key=' + document.getElementById('GeneralKey').value;
+			var mapscript = document.createElement('script'); 
+            mapscript.type = 'text/javascript'; 
+            mapscript.src = searchRequest; 
+			document.getElementById('output').appendChild(mapscript); 
+		}
+		else if (counter < lines.length)
+		{
+			counter++;
+			callRESTLocationsStructured();
+		}
+	  }
+	  function RESTLocationsStructuredCallback(result)
+	  {
+		var query = lines[counter];
+		if (result &&
+          result.resourceSets &&
+          result.resourceSets.length > 0 &&
+          result.resourceSets[0].resources &&
+          result.resourceSets[0].resources.length > 0) 
+          {
+			for (i = 0; i < result.resourceSets[0].resources.length; i++)
+			{
+				document.getElementById('StructuredGeocodeOutput').value += "\t#" + (i+1) + "\t" + result.resourceSets[0].resources[i].entityType + "\t" + result.resourceSets[0].resources[i].confidence + "\t" + result.resourceSets[0].resources[i].point.coordinates;
+				if (typeof (result.resourceSets[0].resources[i].address.addressLine) == 'undefined' || result.resourceSets[0].resources[i].address.addressLine == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.addressLine;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.locality) == 'undefined' || result.resourceSets[0].resources[i].address.locality == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.locality;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.adminDistrict) == 'undefined' || result.resourceSets[0].resources[i].address.adminDistrict == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.adminDistrict;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.postalCode) == 'undefined' || result.resourceSets[0].resources[i].address.postalCode == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.postalCode;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.countryRegion) == 'undefined' || result.resourceSets[0].resources[i].address.countryRegion == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.countryRegion;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.adminDistrict2) == 'undefined' || result.resourceSets[0].resources[i].address.adminDistrict2 == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.adminDistrict2;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].address.neighborhood) == 'undefined' || result.resourceSets[0].resources[i].address.neighborhood == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].address.neighborhood;
+				}
+				
+				if (typeof (result.resourceSets[0].resources[i].name) == 'undefined' || result.resourceSets[0].resources[i].name == null)
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + result.resourceSets[0].resources[i].name;
+				}
+				
+				var RoutingCoords = null;
+				if (typeof (result.resourceSets[0].resources[i].geocodePoints) == 'undefined' || result.resourceSets[0].resources[i].geocodePoints == null)
+				{
+					document.getElementById('UnstructuredGeocodeOutput').value += "\t";
+				}
+				else
+				{
+					for (var j = 0; j < result.resourceSets[0].resources[i].geocodePoints.length; j++)
+					{
+						for (var k = 0; k < result.resourceSets[0].resources[i].geocodePoints[j].usageTypes.length; k++)
+						{
+							if (result.resourceSets[0].resources[i].geocodePoints[j].usageTypes[k] == "Route")
+							{
+								RoutingCoords = result.resourceSets[0].resources[i].geocodePoints[j].coordinates;
+							}							
+						}
+					}
+					if (RoutingCoords == null)
+					{
+						RoutingCoords = result.resourceSets[0].resources[i].point.coordinates;
+					}
+					
+					
+					document.getElementById('StructuredGeocodeOutput').value += "\t" + RoutingCoords;
+				}
+				document.getElementById('StructuredGeocodeOutput').value += "\n";
+			}
+		  }
+		  else if (result.statusCode != 200)
+		  {
+			document.getElementById('StructuredGeocodeOutput').value += "\tAn error has occurred\tError details: " + result.statusDescription + "\tCode " + result.statusCode + "\tTraceID: " + result.traceId + "\n";
+		  }
+		  else 
+		  {
+			document.getElementById('StructuredGeocodeOutput').value += "\tNo Results\n";
+		  }
+		  
+		  if(typeof (result.resourceSets[0]) == 'undefined')
+		  {
+		    counter++;
+			callRESTLocationsStructured();
+		  }
+		  else if (counter < lines.length)
+		  {
+		    counter++;
+			callRESTLocationsStructured();
+		  }
+	  }
+	  
+	  
+	  //Key Validation section
+      function callSearchService() 
+      {   
+		  var key = lines[counter].split('\t');
+		  if(counter < lines.length && !(key[0] === "")){
+			document.getElementById('txtOutput').value += key[0];
+            var searchRequest = 'https://dev.virtualearth.net/REST/v1/Locations/Toronto,%20ON?output=json&jsonp=searchServiceCallback&key=' + key[0];
+            var mapscript = document.createElement('script'); 
+            mapscript.type = 'text/javascript'; 
+            mapscript.src = searchRequest; 
+			document.getElementById('output').appendChild(mapscript); 
+		  }
+		  else if (counter < lines.length)
+		  {
+			counter++;
+			callSearchService();
+		  }
+      } 
+	  function searchServiceCallback(result)
+      {
+		var key = lines[counter].split('\t');
+		document.getElementById('txtOutput').value += "\t" + key[1] + "\t" + result.statusCode + "\t" + result.statusDescription + "\n"
+		counter++;
+		if (counter < lines.length)
+		{
+			callSearchService();
+		}
+		
+	  }
+      
+	  
+	  //SDS Job lookup section
+	  function checkJobs()
+	  {
+		currentDate = new Date();
+	    var SpatialKey = document.getElementById('GeneralKey').value;
+		under24 = true;
+		var SpatialJobListRequest = 'http://spatial.virtualearth.net/REST/v1/dataflows/listjobs?jsonp=spatialServiceCallback&key=' + SpatialKey;
+		var spatialscript = document.createElement('script'); 
+        spatialscript.type = 'text/javascript'; 
+        spatialscript.src = SpatialJobListRequest; 
+		document.getElementById('output').appendChild(spatialscript); 
+	  }
+	  function spatialServiceCallback(result)
+	  {
+	    if (result &&
+          result.resourceSets &&
+          result.resourceSets.length > 0 &&
+          result.resourceSets[0].resources &&
+          result.resourceSets[0].resources.length > 0) 
+          {
+			document.getElementById('JobList').value = "total jobs found in last 15 days: " + result.resourceSets[0].estimatedTotal + "\n===Under 24 hours===\n";
+			for(i = 0; i < result.resourceSets[0].resources.length; i++)
+			{
+				
+				if(result.resourceSets[0].resources[i].status == "Completed")
+				{
+					var dateString = result.resourceSets[0].resources[i].completedDate;
+					var dateJob = new Date(dateString);
+					var jobAge = currentDate.getTime() - dateJob.getTime();
+					var jobAgeMinutes = parseInt((jobAge/60000),10);
+					var jobAgeHours = parseInt((jobAgeMinutes/60),10);
+					var jobAgeDays = parseInt((jobAgeHours/24),10);
+					jobAgeMinutes = jobAgeMinutes - (jobAgeHours * 60);
+					jobAgeHours = jobAgeHours - (jobAgeDays * 24);
+					if (jobAgeDays > 0 && under24)
+					{
+						under24 = false;
+						document.getElementById('JobList').value += "===Over 24 hours===\n";
+					}
+					
+					
+					document.getElementById('JobList').value += "#" + (i+1) + "\t Name: ";
+					if (result.resourceSets[0].resources[i].description == "Geocode")
+					{
+						document.getElementById('JobList').value += "n/a";
+					}
+					else
+					{
+						document.getElementById('JobList').value += result.resourceSets[0].resources[i].name;
+					}
+				
+					document.getElementById('JobList').value += "\tID: " + result.resourceSets[0].resources[i].id + "\tJob Type: " + result.resourceSets[0].resources[i].description;
+					
+					
+					
+					document.getElementById('JobList').value += "\tCompleted: " +  dateString;
+					document.getElementById('JobList').value += "\tJob age: ";
+					if (jobAgeDays != 0)
+					{
+						document.getElementById('JobList').value += jobAgeDays + " days, ";
+					}
+					if (jobAgeHours != 0)
+					{
+						document.getElementById('JobList').value += jobAgeHours + " hours, ";
+					}
+					document.getElementById('JobList').value += jobAgeMinutes + " minutes";
+					
+				}
+				else if(result.resourceSets[0].resources[i].status == "Pending")
+				{
+				
+					document.getElementById('JobList').value += "#" + (i+1) + "\t Name: ";
+					if (result.resourceSets[0].resources[i].description == "Geocode")
+					{
+						document.getElementById('JobList').value += "n/a";
+					}
+					else
+					{
+						document.getElementById('JobList').value += result.resourceSets[0].resources[i].name;
+					}
+					
+					document.getElementById('JobList').value += "\tID: " + result.resourceSets[0].resources[i].id + "\tJob Type: " + result.resourceSets[0].resources[i].description;
+					var dateString = result.resourceSets[0].resources[i].createdDate;
+					document.getElementById('JobList').value += "\tCreated: " +  dateString;
+					document.getElementById('JobList').value += "\t(Pending)";
+				}
+				
+				document.getElementById('JobList').value += "\n";
+			}
+		  }
+		  else
+		  {
+			document.getElementById('JobList').value = "total jobs found in last 15 days: 0";
+		  }
+	  }
+
+	  //Map control (v8) loading section
+	  function loadMapScenario() 
+	  {
+		map = new Microsoft.Maps.Map(document.getElementById('myMap'), { credentials: document.getElementById('GeneralKey').value
+		});
+		document.getElementById("output").innerHTML = "";
+		document.getElementById("mapButtons").style.display = "block";
+		document.getElementById("output").style.display = "block";
+		document.getElementById("myMap").style.display = "block";
+		bestBBox = [];
+		unstructPpinsDisplayed = false;
+		structPpinsDisplayed = false;
+		directionsManager = null;
+		map.getCredentials(function (credentials){
+			if (document.getElementById('GeneralKey').value != credentials);
+			{
+				document.getElementById('GeneralKey').value = credentials;
+			}
+		});
+		//currentCoords = map.getCenter();
+      }
+	  
+	  //called to update the map view to contain all pushpins.
+	  function updateMapView()
+	  {
+		var locs = [];
+		
+		if (unstructuredResultSet.length > 0 && unstructPpinsDisplayed)
+		{
+			for (var i = 0; i < unstructuredResultSet.length; i++)
+			{
+				var tempCoords = unstructuredResultSet[i].split('\t')[4];
+				locs.push(new Microsoft.Maps.Location(tempCoords.split(',')[0],tempCoords.split(',')[1]));
+				
+			}
+				
+				//document.getElementById('MapButtonMessage').innerHTML += "||||" + bestBBox[0] + "," + bestBBox[1] + ";" + bestBBox[2] + "," + bestBBox[3];
+			
+			
+		}
+		if (structuredResultSet.length > 0 && structPpinsDisplayed)
+		{
+			for (var i = 0; i < structuredResultSet.length; i++)
+			{
+				var tempCoords = structuredResultSet[i].split('\t')[4];
+				locs.push(new Microsoft.Maps.Location(tempCoords.split(',')[0],tempCoords.split(',')[1]));
+					
+			}
+		}
+		if (overrideResultSet.length > 0 && overridePpinsDisplayed)
+		{
+			for (var i = 0; i < overrideResultSet.length; i++)
+			{
+				var tempCoords = overrideResultSet[i].split('\t')[4];
+				locs.push(new Microsoft.Maps.Location(tempCoords.split(',')[0],tempCoords.split(',')[1]));
+				
+			}
+		}
+		if (locs.length > 0)
+		{
+			var viewRect = Microsoft.Maps.LocationRect.fromLocations(locs);
+			map.setView(
+			{
+				bounds: viewRect
+			}
+			);
+		}
+		locs = [];
+	  }
+	  
+	  //called when user needs to hide infobox
+	  function hideInfobox()
+	  {
+		iBox.setOptions({visible: false});
+		updateMapView();
+	  }
+	  
+	  //Section that displays Unstructured Geocode results on map and adds an infobox object that can later be used to call the GeoData handling function
+	  function DisplayUnstructuredPushpins()
+	  {
+		if (document.getElementById('UnstructuredGeocodeOutput').value.length == 0)
+		{
+			document.getElementById('MapButtonMessage').innerHTML = "No results present in Unstructured Geocoding section";
+		}
+		else
+		{
+			lines = document.getElementById('UnstructuredGeocodeOutput').value.split('\n');
+			counter = 0;
+			unstructuredResultSet = [];
+			var lineValues = null;
+			var UnstrResultPPinLayer = new Microsoft.Maps.Layer("UnstrLayer");
+			if (pPinsUn.length > 0)
+			{
+				for (var i = 0; i < pPinsUn.length; i++)
+				{
+					map.entities.removeAt(map.entities.indexOf(pPinsUn[i]));
+					
+				}
+			}
+			pPinsUn = [];
+			for (var i = 1; i < lines.length; i++)
+			{	
+				
+				if (!(lines[i].length == 0) && typeof (lines[i].split('\t')[4]) != 'undefined' && typeof (lines[i].split('\t')[1]) != 'undefined' && typeof (lines[i].split('\t')[12]) != 'undefined')
+				{
+					unstructuredResultSet.push(lines[i]);
+					lineValues = lines[i].split('\t');
+					if (!(lineValues[1][1] > 1))
+					{
+						counter++;
+					}
+					
+					var coords = lineValues[4].split(',');
+					var pinLoc = new Microsoft.Maps.Location(coords[0],coords[1]);
+					pPinsUn.push(new Microsoft.Maps.Pushpin(pinLoc, {color: 'DarkGreen', text: counter + "-" + lineValues[1][1], title: ("" + lineValues[12])}));
+				}
+			}
+			
+			if (pPinsUn.length == 0)
+			{
+				document.getElementById('MapButtonMessage').innerHTML = "No good results present in Unstructured Geocoding section";
+			}
+			if (iBox == null) 
+			{
+				iBox = new Microsoft.Maps.Infobox(new Microsoft.Maps.Location(0.0,0.0), { title: 'title', description: 'oh god', visible: false, showCloseButton: false });
+				iBox.setMap(map);
+				//document.getElementById('MapButtonMessage').innerHTML = "infobox created";
+			}
+			else
+			{
+				iBox.setOptions({ visible: false });
+				iBox.setMap(map);
+			}
+			
+			for (var i = 0; i < pPinsUn.length; i++)
+			{
+				var pPin = pPinsUn[i];
+				Microsoft.Maps.Events.addHandler(pPin, 'click', function (args) { 
+						//currentCoords = args.target.getLocation();
+						map.setView({center:args.target.getLocation(), zoom: 15});
+						iBox.setLocation(args.target.getLocation());
+						var UnstrIndex = pPinsUn.indexOf(args.target);
+						var resultSetLine = unstructuredResultSet[UnstrIndex].split('\t');
+						iBox.setOptions({ visible: true });
+						
+						var HtmlContent = '<div id="infoboxText" style="z-index: 9999; background-color:White; border-style:solid; border-width:medium; border-color:DarkOrange; min-height:100px; width: 240px; "><div style="font-size: 11; font-weight: bold">' + resultSetLine[12] + '</div><div tyle="font-size: 10">Entity Type: '+ resultSetLine[2] + '</br>Confidence: ' + resultSetLine[3];
+						if (resultSetLine[5] != "")
+						{
+							HtmlContent += '</br>Address Line: ' + resultSetLine[5];
+						}
+						if (resultSetLine[8] != "")
+						{
+							HtmlContent += '</br>Postal Code: ' + resultSetLine[8] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'Postcode1\',\'' + resultSetLine[8] + '\');" />';
+						}
+						if (resultSetLine[6] != "")
+						{
+							HtmlContent += '</br>City/Town: ' + resultSetLine[6] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'PopulatedPlace\',\'' + resultSetLine[6] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[7] != "")
+						{
+							HtmlContent += '</br>State/Province: ' + resultSetLine[7] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'AdminDivision1\',\'' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[10] != "")
+						{
+							HtmlContent += '</br>District/Division: ' + resultSetLine[10] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'AdminDivision2\',\'' + resultSetLine[10] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[11] != "")
+						{
+							HtmlContent += '</br>Neighborhood: ' + resultSetLine[11] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'Neighborhood\',\'' + resultSetLine[11] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[13] != "")
+						{
+							HtmlContent += '</br><input type="button" value="Add to Waypoints" onclick="addWaypoint(\'Unstructured\',\'' + UnstrIndex + '\');" />';
+						}
+						HtmlContent += '</br><input type="button" value="Hide Infobox" onclick="hideInfobox();" /></div></div>';
+						iBox.setHtmlContent(HtmlContent);
+					});
+				UnstrResultPPinLayer.add(pPin);
+			}
+			map.entities.push(UnstrResultPPinLayer);
+			unstructPpinsDisplayed = true;
+		}
+		updateMapView();
+		
+	  }
+	  
+	  //Same as the above section, but for the results acquired through the override section.
+	  function DisplayOverridePushpins()
+	  {
+		if (document.getElementById('outputBoxOverride').value.length == 0)
+		{
+			document.getElementById('MapButtonMessage').innerHTML = "No results present in Override Geocoding section";
+		}
+		else 
+		{
+			lines = document.getElementById('outputBoxOverride').value.split('\n');
+			counter = 0;
+			overrideResultSet = [];
+			var lineValues = null;
+			var OverrideResultPPinLayer = new Microsoft.Maps.Layer("OverrideLayer");
+			if (pPinsOv.length > 0)
+			{
+				for (var i = 0; i < pPinsOv.length; i++)
+				{
+					map.entities.removeAt(map.entities.indexOf(pPinsOv[i]));
+					
+				}
+			}
+			pPinsOv = [];
+			for (var i = 1; i < lines.length; i++)
+			{	
+				
+				if (!(lines[i].length == 0) && typeof (lines[i].split('\t')[4]) != 'undefined' && typeof (lines[i].split('\t')[1]) != 'undefined' && typeof (lines[i].split('\t')[12]) != 'undefined')
+				{
+					overrideResultSet.push(lines[i]);
+					lineValues = lines[i].split('\t');
+					if (!(lineValues[1][1] > 1))
+					{
+						counter++;
+					}
+					
+					var coords = lineValues[4].split(',');
+					var pinLoc = new Microsoft.Maps.Location(coords[0],coords[1]);
+					pPinsOv.push(new Microsoft.Maps.Pushpin(pinLoc, {color: 'Orange', text: lineValues[1][1], title: ("" + lineValues[12])}));
+				}
+			}
+			if (pPinsOv.length == 0)
+			{
+				document.getElementById('MapButtonMessage').innerHTML = "No good results present in Override Geocoding section";
+			}
+			if (iBox == null) 
+			{
+				iBox = new Microsoft.Maps.Infobox(new Microsoft.Maps.Location(0.0,0.0), { title: 'title', description: 'oh god', visible: false, showCloseButton: false });
+				iBox.setMap(map);
+				//document.getElementById('MapButtonMessage').innerHTML = "infobox created";
+			}
+			else
+			{
+				iBox.setOptions({ visible: false });
+				iBox.setMap(map);
+			}
+			//-----------------
+			for (var i = 0; i < pPinsOv.length; i++)
+			{
+				var pPin = pPinsOv[i];
+				Microsoft.Maps.Events.addHandler(pPin, 'click', function (args) { 
+						//currentCoords = args.target.getLocation();
+						map.setView({center:args.target.getLocation(), zoom: 15});
+						iBox.setLocation(args.target.getLocation());
+						var OverrideIndex = pPinsOv.indexOf(args.target);
+						var resultSetLine = overrideResultSet[OverrideIndex].split('\t');
+						iBox.setOptions({ visible: true });
+						
+						var HtmlContent = '<div id="infoboxText" style="z-index: 9999; background-color:White; border-style:solid; border-width:medium; border-color:DarkOrange; min-height:100px; width: 240px; "><div style="font-size: 11; font-weight: bold">' + resultSetLine[12] + '</div><div tyle="font-size: 10">Entity Type: '+ resultSetLine[2] + '</br>Confidence: ' + resultSetLine[3];
+						if (resultSetLine[5] != "")
+						{
+							HtmlContent += '</br>Address Line: ' + resultSetLine[5];
+						}
+						if (resultSetLine[8] != "")
+						{
+							HtmlContent += '</br>Postal Code: ' + resultSetLine[8] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'Postcode1\',\'' + resultSetLine[8] + '\');" />';
+						}
+						if (resultSetLine[6] != "")
+						{
+							HtmlContent += '</br>City/Town: ' + resultSetLine[6] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'PopulatedPlace\',\'' + resultSetLine[6] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[7] != "")
+						{
+							HtmlContent += '</br>State/Province: ' + resultSetLine[7] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'AdminDivision1\',\'' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[10] != "")
+						{
+							HtmlContent += '</br>District/Division: ' + resultSetLine[10] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'AdminDivision2\',\'' + resultSetLine[10] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[11] != "")
+						{
+							HtmlContent += '</br>Neighborhood: ' + resultSetLine[11] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'Neighborhood\',\'' + resultSetLine[11] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[13] != "")
+						{
+							HtmlContent += '</br><input type="button" value="Add to Waypoints" onclick="addWaypoint(\'Override\',\'' + OverrideIndex + '\');" />';
+						}
+						HtmlContent += '</br><input type="button" value="Hide Infobox" onclick="hideInfobox();" /></div></div>';
+						iBox.setHtmlContent(HtmlContent);
+					});
+				OverrideResultPPinLayer.add(pPin);
+			}
+			map.entities.push(OverrideResultPPinLayer);
+			overridePpinsDisplayed = true;
+		}
+		updateMapView();
+	  }
+	  
+	  //Same as the above section, but for the structured geocode results
+	  function DisplayStructuredPushpins()
+	  {
+		if (document.getElementById('StructuredGeocodeOutput').value.length == 0)
+		{
+			document.getElementById('MapButtonMessage').innerHTML = "No results present in Structured Geocoding section";
+		}
+		else
+		{
+			lines = document.getElementById('StructuredGeocodeOutput').value.split('\n');
+			counter = 0;
+			structuredResultSet = [];
+			var lineValues = null;
+			var StrResultPPinLayer = new Microsoft.Maps.Layer("StrLayer");
+			if (pPinsSt.length > 0)
+			{
+				for (var i = 0; i < pPinsSt.length; i++)
+				{
+					map.entities.removeAt(map.entities.indexOf(pPinsSt[i]));
+					
+				}
+			}
+			pPinsSt = [];
+			for (var i = 1; i < lines.length; i++)
+			{	
+				
+				if (!(lines[i].length == 0) && typeof (lines[i].split('\t')[4]) != 'undefined' && typeof (lines[i].split('\t')[1]) != 'undefined' && typeof (lines[i].split('\t')[12]) != 'undefined')
+				{
+					structuredResultSet.push(lines[i]);
+					lineValues = lines[i].split('\t');
+					if (!(lineValues[1][1] > 1))
+					{
+						counter++;
+					}
+					
+					var coords = lineValues[4].split(',');
+					var pinLoc = new Microsoft.Maps.Location(coords[0],coords[1]);
+					pPinsSt.push(new Microsoft.Maps.Pushpin(pinLoc, {color: 'DarkRed', text: counter + "-" + lineValues[1][1], title: ("" + lineValues[12])}));
+				}
+			}
+			
+			if (pPinsSt.length == 0)
+			{
+				document.getElementById('MapButtonMessage').innerHTML = "No good results present in Structured Geocoding section";
+			}
+			if (iBox == null) 
+			{
+				iBox = new Microsoft.Maps.Infobox(new Microsoft.Maps.Location(0.0,0.0), { title: 'title', description: 'oh god', visible: false, showCloseButton: false });
+				iBox.setMap(map);
+				//document.getElementById('MapButtonMessage').innerHTML = "infobox created";
+			}
+			else
+			{
+				iBox.setOptions({ visible: false });
+				iBox.setMap(map);
+			}
+			
+			for (var i = 0; i < pPinsSt.length; i++)
+			{
+				var pPin = pPinsSt[i];
+				Microsoft.Maps.Events.addHandler(pPin, 'click', function (args) { 
+						//currentCoords = args.target.getLocation();
+						map.setView({center:args.target.getLocation(), zoom: 15});
+						iBox.setLocation(args.target.getLocation());
+						var StrucIndex = pPinsSt.indexOf(args.target);
+						var resultSetLine = structuredResultSet[StrucIndex].split('\t');
+						iBox.setOptions({ visible: true });
+						
+						var HtmlContent = '<div id="infoboxText" style="z-index: 9999; background-color:White; border-style:solid; border-width:medium; border-color:DarkOrange; min-height:100px; width: 240px; "><div style="font-size: 11; font-weight: bold">' + resultSetLine[12] + '</div><div tyle="font-size: 10">Entity Type: '+ resultSetLine[2] + '</br>Confidence: ' + resultSetLine[3];
+						if (resultSetLine[5] != "")
+						{
+							HtmlContent += '</br>Address Line: ' + resultSetLine[5];
+						}
+						if (resultSetLine[8] != "")
+						{
+							HtmlContent += '</br>Postal Code: ' + resultSetLine[8] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'Postcode1\',\'' + resultSetLine[8] + '\');" />';
+						}
+						if (resultSetLine[6] != "")
+						{
+							HtmlContent += '</br>City/Town: ' + resultSetLine[6] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'PopulatedPlace\',\'' + resultSetLine[6] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[7] != "")
+						{
+							HtmlContent += '</br>State/Province: ' + resultSetLine[7] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'AdminDivision1\',\'' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[10] != "")
+						{
+							HtmlContent += '</br>District/Division: ' + resultSetLine[10] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'AdminDivision2\',\'' + resultSetLine[10] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[11] != "")
+						{
+							HtmlContent += '</br>Neighborhood: ' + resultSetLine[11] + ' <input type="button" value="Show Polygon" onclick="displayPolygon(\'Neighborhood\',\'' + resultSetLine[11] + ', ' + resultSetLine[7] + '\');" />';
+						}
+						if (resultSetLine[13] != "")
+						{
+							HtmlContent += '</br><input type="button" value="Add to Waypoints" onclick="addWaypoint(\'Structured\',\'' + StrucIndex + '\');" />';
+						}
+						HtmlContent += '<input type="button" value="Hide Infobox" onclick="hideInfobox();" /></div></div>';
+						iBox.setHtmlContent(HtmlContent);
+					});
+				StrResultPPinLayer.add(pPin);
+			}
+			map.entities.push(StrResultPPinLayer);
+			structPpinsDisplayed = true;
+		}
+		updateMapView();
+		
+	  }
+	  
+	  
+	  //v8's polygon feature section
+	  function displayPolygon(polygonEntityType,input)
+	  {
+		var geoDataRequestOptions = null;
+		var geoDataRequestInput = null;
+		var e = document.getElementById("dropdownEntitySelection");
+		if (polygonEntityType == "" || typeof polygonEntityType == 'undefined' || input == "" || typeof input == 'undefined')
+		{	
+			geoDataRequestOptions = { entityType: e.options[e.selectedIndex].value, getEntityMetadata: true };
+			geoDataRequestInput = document.getElementById("PolygonInput").value;
+			
+		}
+		else
+		{
+			geoDataRequestOptions = {entityType: polygonEntityType, getEntityMetadata: true};
+			geoDataRequestInput = input;
+		}
+		if (geoDataRequestInput != "")
+		{
+			Microsoft.Maps.loadModule('Microsoft.Maps.SpatialDataService', function () {
+                    //Use the GeoData API manager to get the boundary
+                    Microsoft.Maps.SpatialDataService.GeoDataAPIManager.getBoundary(geoDataRequestInput, geoDataRequestOptions, map, function (data) {
+                        if (data.results && data.results.length > 0) {
+							document.getElementById('MapButtonMessage').innerHTML = "";
+							for (var i = map.entities.getLength() - 1; i >= 0; i--) {
+								var polygon = map.entities.get(i);
+								if (polygon instanceof Microsoft.Maps.Polygon) {
+									map.entities.removeAt(i);
+								}
+							}
+							
+							var bBoxSplit = data.results[0].EntityMetadata.BestMapViewBox.split('(');
+							var bBox = [];
+							bBox.push(bBoxSplit[2].split(')')[0].split(' ')[0]);
+							bBox.push(bBoxSplit[2].split(')')[0].split(' ')[1]);
+							bBox.push(bBoxSplit[3].split(')')[0].split(' ')[0]);
+							bBox.push(bBoxSplit[3].split(')')[0].split(' ')[1]);
+							map.setView({bounds:Microsoft.Maps.LocationRect.fromLocations(new Microsoft.Maps.Location(bBox[1], bBox[0]), new Microsoft.Maps.Location(bBox[3], bBox[2]))});
+							
+							
+							/*var zoomLevel = map.getZoom();
+							switch (geoDataRequestOptions.entityType)
+							{
+								case ("CountryRegion"):
+									zoomLevel = 3;
+									break;
+								case ("AdminDivision1"):
+									zoomLevel = 6;
+									break;
+								case ("AdminDivision2"):
+									zoomLevel = 11;
+									break;
+								case ("Postcode1"):
+									zoomLevel = 18;
+									break;
+								case ("Neighborhood"):
+									zoomLevel = 17;
+									break;
+								case ("PopulatedPlace"):
+									zoomLevel = 10;
+									break;
+							}
+							map.setView({zoom:zoomLevel, center: currentCoords});*/
+							map.entities.push(data.results[0].Polygons);
+                        }
+						else
+						{
+							document.getElementById('MapButtonMessage').innerHTML = "No Polygon Found for that entity";
+							for (var i = map.entities.getLength() - 1; i >= 0; i--) {
+								var polygon = map.entities.get(i);
+								if (polygon instanceof Microsoft.Maps.Polygon) {
+									map.entities.removeAt(i);
+								}
+							}
+							//document.getElementById('MapButtonMessage').innerHTML += ". Selected entity type: " + e.options[e.selectedIndex].value;
+							if (polygonEntityType == "Postcode1")
+							{
+								document.getElementById('MapButtonMessage').innerHTML += "... Running secondary postal search ...";
+								geoDataRequestOptions = {entityType: "Postcode2", getEntityMetadata: true};
+								Microsoft.Maps.SpatialDataService.GeoDataAPIManager.getBoundary(geoDataRequestInput, geoDataRequestOptions, map, function (data) {
+								if (data.results && data.results.length > 0) {
+									for (var i = map.entities.getLength() - 1; i >= 0; i--) {
+										var polygon = map.entities.get(i);
+										if (polygon instanceof Microsoft.Maps.Polygon) {
+											map.entities.removeAt(i);
+										}
+									}
+									var bBoxSplit = data.results[0].EntityMetadata.BestMapViewBox.split('(');
+									var bBox = [];
+									bBox.push(bBoxSplit[2].split(')')[0].split(' ')[0]);
+									bBox.push(bBoxSplit[2].split(')')[0].split(' ')[1]);
+									bBox.push(bBoxSplit[3].split(')')[0].split(' ')[0]);
+									bBox.push(bBoxSplit[3].split(')')[0].split(' ')[1]);
+									map.setView({bounds:Microsoft.Maps.LocationRect.fromLocations(new Microsoft.Maps.Location(bBox[1], bBox[0]), new Microsoft.Maps.Location(bBox[3], bBox[2]))});
+									//map.setView({zoom:15, center: currentCoords});
+									map.entities.push(data.results[0].Polygons);
+									document.getElementById('MapButtonMessage').innerHTML += ". Instead showing polygon for " + data.results[0].Name.EntityName;
+								}
+								});
+							}
+						}
+                    });
+                });
+		}
+		else
+		{
+			document.getElementById('MapButtonMessage').innerHTML = "Need your input to display polygon.";
+		}
+		
+	  }
+	  
+	  
+	  //this function generates the route and displays it on the map using the waypoints from the select element
+	  function generateRoute()
+	  {
+		var x = document.getElementById("waypointSelect").options;
+		if (x.length > 1){
+			Microsoft.Maps.loadModule('Microsoft.Maps.Directions', function () {
+				var routeType = document.getElementById("dropdownRouteType");
+				var routeOpt = document.getElementById("dropdownRouteOptimization")
+				var routeAvdc = document.getElementById("dropdownRouteAvoidance");
+				switch (routeType.options[routeType.selectedIndex].value) {
+					case "driving": routeType = Microsoft.Maps.Directions.RouteMode.driving; break;
+					console.log("driving");
+					case "transit": routeType = Microsoft.Maps.Directions.RouteMode.transit; break;
+					case "walking": routeType = Microsoft.Maps.Directions.RouteMode.walking; break;
+				}
+				switch (routeOpt.options[routeOpt.selectedIndex].value) {
+					case "shortestTime": routeOpt = Microsoft.Maps.Directions.RouteOptimization .shortestTime; break;
+					console.log("driving");
+					case "shortestDistance": routeOpt = Microsoft.Maps.Directions.RouteOptimization .shortestDistance; break;
+					case "minimizeMoney": routeOpt = Microsoft.Maps.Directions.RouteOptimization .minimizeMoney; break;
+					case "minimizeTransfers": routeOpt = Microsoft.Maps.Directions.routeOpt.minimizeTransfers; break;
+					case "minimizeWalking": routeOpt = Microsoft.Maps.Directions.RouteOptimization .minimizeWalking; break;
+				}
+				switch (routeAvdc.options[routeAvdc.selectedIndex].value) {
+					case "none": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.none; break;
+					console.log("driving");
+					case "minimizeLimitedAccessHighway": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.minimizeLimitedAccessHighway; break;
+					case "minimizeToll": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.minimizeToll; break;
+					case "avoidLimitedAccessHighway": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.avoidLimitedAccessHighway; break;
+					case "avoidToll": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.avoidToll; break;
+					case "avoidExpressTrain": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.avoidExpressTrain; break;
+					case "avoidAirline": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.avoidAirline; break;
+					case "avoidBulletTrain": routeAvdc = Microsoft.Maps.Directions.RouteAvoidance.avoidBulletTrain; break;
+				}
+				
+			
+				// Set Route Mode to driving
+				if (directionsManager == null)
+				{
+					//document.getElementById('MapButtonMessage').innerHTML += "Direction Manager Created";
+					directionsManager = new Microsoft.Maps.Directions.DirectionsManager(map);
+				}
+				else
+				{
+					//document.getElementById('MapButtonMessage').innerHTML += ", Route Cleared";
+					directionsManager.clearAll();
+					directionsManager.clearDisplay();
+				}
+					
+				var routeAvoidances = [routeAvdc];
+				directionsManager.setRequestOptions({ routeMode: routeType, routeOptimization: routeOpt, routeAvoidance: routeAvoidances });
+				
+				
+				for (var i = 0; i < x.length; i++)
+				{
+					var name = x[i].text.split(':')[0];
+					var latitude = x[i].text.split(':')[1].split(',')[0];
+					var longitude = x[i].text.split(':')[1].split(',')[1];
+					var waypoint = new Microsoft.Maps.Directions.Waypoint({ address: name, location: new Microsoft.Maps.Location(latitude, longitude) });
+					directionsManager.addWaypoint(waypoint);
+				}
+				
+				// Set the element in which the itinerary will be rendered
+				directionsManager.setRenderOptions({ itineraryContainer: document.getElementById('output') });
+				directionsManager.calculateDirections();
+			});
+		}
+	  }
+	  
+	  //this function is used to add a waypoint to the waypoint select element for later use
+	  function addWaypoint(resultSet, resultSetPosition)
+	  {
+		var x = document.getElementById("waypointSelect");
+		var WaypointOption = "";
+		var opt = document.createElement("option");
+		if (resultSet == "Unstructured")
+		{
+			WaypointOption = unstructuredResultSet[resultSetPosition].split('\t')[12] + ":" + unstructuredResultSet[resultSetPosition].split('\t')[13];
+		}
+		if (resultSet == "Structured")
+		{
+			WaypointOption = structuredResultSet[resultSetPosition].split('\t')[12] + ":" + structuredResultSet[resultSetPosition].split('\t')[13];
+		}
+		if (resultSet == "Override")
+		{
+			WaypointOption = overrideResultSet[resultSetPosition].split('\t')[12] + ":" + overrideResultSet[resultSetPosition].split('\t')[13];
+		}
+		if (WaypointOption != "")
+		{
+			opt.text = WaypointOption;
+			x.options.add(opt);
+		}
+	  }
+	  
+	  //function used to remove a waypoint from a select
+	  function removeWaypoint()
+	  {
+		//document.getElementById('MapButtonMessage').innerHTML = "waypoint removed";
+		var x = document.getElementById("waypointSelect");
+		x.options.remove(x.options.selectedIndex);
+	  }
+	  
+	  //this section handles changing the order of the waypoints in the waypoint select
+	  function changeWPOrder(direction)
+	  {
+		var x = document.getElementById("waypointSelect");
+		var selectedItemIndex = x.options.selectedIndex;
+		var swappingItem = x.options[selectedItemIndex];
+		if (x.options.length > 0 && selectedItemIndex > 0 && direction == "up")
+		{
+			x.options.remove[selectedItemIndex];
+			x.options.add(swappingItem,(selectedItemIndex - 1));
+			
+		}
+		else if (x.options.length > 0 && selectedItemIndex < x.options.length && direction == "down")
+		{
+			x.options.remove[selectedItemIndex];
+			x.options.add(swappingItem,(selectedItemIndex + 2));
+		}
+		
+	  }
+                
+
+      </script>
+   </head>
+   <body onload="init()">
+	  <div id="NavBar" style="float: top;">
+		<input type="button" value="Show Key Validator" onclick="toggleVisibiltiyKeyVal();" />
+		<input type="button" value="Show Spatial Job Lister" onclick="toggleVisibilitySpatJobList();" />
+		<input type="button" value="Show REST Geocoding (Unstructured)" onclick="toggleVisibiltiyRestUnstructured();" />
+		<input type="button" value="Show REST Geocoding (Structured)" onclick="toggleVisibiltiyRestStructured();" />
+		<input type="button" value="Show Geocode Overrider" onclick="toggleVisibiltiyOverrider();" />
+		<input type="button" value="Show v8 Map" onclick="toggleVisibiltiyMapV8();" />
+		<input type="button" value="Hide All" onclick="hideAll();" /> </br>
+		Key for main use: <input type="text" size="95" id="GeneralKey" name="GeneralKey" value="AtQ9L9iZ1DPVQz7jSEmZT3BCcjDeUyvrrUseQjfUTZ5zxGVPb4ZN9C1MuQ92v8lL" />
+		<a href="https://msdn.microsoft.com/en-us/library/Ff428642.aspx" target="_blank">How to get a key</a>
+	  </div></br>
+	  
+      <div id="KeyValDiv" style="display:none">
+		 This section is used to check whether Bing Maps keys are valid or if they are unauthorized. Enter a list of keys into the Input textbox (one per line) and click "Validate"</br></br>
+		 Input Schema: Key[tab]notes</br>
+		 <textarea name="textbox1" id="txtInput" cols="200" rows="20" wrap='off' value="" ></textarea> </br>
+         <input type="button" value="Validate" onclick="prepValidator();" /> </br></br>
+		 Output</br>
+		 <textarea name="textbox2" id="txtOutput" cols="200" rows="20" wrap='off' value=""></textarea>
+      </div>
+	  
+	  <div id="SpatJobListDiv" style="display:none">
+		This section will list out all of the Spatial jobs that have been run in the past 15 days. These will be the jobs run on the account that the supplied key belongs to. Simply enter a key into the textbox above and click "Check Jobs"</br></br>
+       <input type="button" value="Check Jobs" onclick="checkJobs();" /> </br>
+		<textarea name="JobList" id="JobList" cols="200" rows="52" wrap='off' value="" ></textarea> </br>
+	  </div>
+	  
+	  <div id="RESTGeocodeUnstructured" style="display:none">
+		This section allows you to geocode a list of addresses in unstructured format. Each single line should contain a new address - no special formatting needed.</br></br>
+		Input:</br>
+		<textarea id="UnstructuredGeocodeInput" cols="200" rows="20" wrap='off' value="" ></textarea></br>
+		<input type="button" value="Geocode" onclick="prepUnstructured();" /></br></br>
+		Output</br>
+		<textarea id="UnstructuredGeocodeOutput" cols="200" rows="20" wrap='off' value="" ></textarea>
+	  </div>
+	  
+	  <div id="RESTGeocodeStructured" style="display:none; float: left;">
+		This section allows you to geocode a list of addresses in structured format. Each single line should contain a new address - your input must adhere to the following schema for each line.</br></br>
+		Input Schema: Address Line[tab]Locality[tab]Admin District[tab]Postal Code[tab]Country Region</br>
+		<textarea id="StructuredGeocodeInput" cols="200" rows="20" wrap='off' value="" ></textarea></br>
+		<input type="button" value="Geocode" onclick="prepStructured();" /></br></br>
+		Output</br>
+		<textarea id="StructuredGeocodeOutput" cols="200" rows="20" wrap='off' value="" ></textarea>
+	  </div>
+	  
+	  <div id='v8mapControl' style="display:none; float: left;">
+		This section uses the v8 map control to help visualize data from the geocoding sections, display polygons provided by the Geodata API, and utilizes the Directions module built into it to display routes. </br>
+		<input type="button" id="TipsButton" value="Show Tips" onclick="ToggleTips('block');"/>
+		<div id="v8TipsDiv"style="display:none;">
+			- Enter a key into the textbox above and click on "Show Map" to generate a new map. Note that the key in the textbox will change. The new key is called a session key, and if it's used to authenticate any service request, that service request will become non-billable.</br>
+			- Along with the map control, you have three buttons that show results from the geocoding sections on the map. If you have results in one of the geocoding sections, then simply click on the corresponding button and they will be rendered as pushpins.</br>
+			- Each pushpin comes with a click event that will open an infobox with additional options. It will break down the result into a hierarchy of regions where it's located, and beside each region there will be a button which you can click to render a polygon that represents it. You will also see the option to add the location to your route. Doing this will store its name and coordinates into the waypoints list for later use. Clicking on the "Hide Infobox" button will hide the infobox and set the best view that contains all of the present pushpins.</br>
+			- Below the three buttons for rendering pushpins you will find a button, textbox and drop-down. This can be used to render individual polygons. Enter something like "12345" into the textbox, set the drop-down to Postcode1 and click on "Get Polygon". You will see a polygon representing the area of zip code 12345</br>
+			- To the right you will see a list that will contain waypoints for routing (see the note on pushpins). You can change their order by clicking on one and using the corresponding arrow button. You can remove a waypoint by selecting it and clicking "Remove Waypoint". Further options can be found in the drop-down menus on the right. When waypoint order is satisfactory, click on "Generate Route" and the map will display a route based on the Directions API that is built into the v8 control.</br>
+			<input type="button" value="Hide Tips" onclick="ToggleTips('none');"/>
+		</div>
+		</br>
+		<input type="button" value="Show Map" onclick="loadMapScenario();" />
+		</br></br>
+		<div id='mapButtons' style="height: 110px; display:none;">
+			
+			<div style='width:350px; float: left; height: 400;'>
+				<input type="button" value="Show Unstructured Results" onclick="DisplayUnstructuredPushpins();" />
+				<input type="button" value="Show Structured Results" onclick="DisplayStructuredPushpins();" /></br>
+				<input type="button" value="Show Override Results" onclick="DisplayOverridePushpins();"/></br>
+				<input type="button" value="Get Polygon" onclick="displayPolygon();" /><input type="text" size="15" id="PolygonInput"/>
+				<select id="dropdownEntitySelection">
+					<option value="CountryRegion">CountryRegion</option>
+					<option value="AdminDivision1">AdminDivision1</option>
+					<option value="AdminDivision2">AdminDivision2</option>
+					<option value="Postcode1">Postcode1</option>
+					<option value="Postcode2">Postcode2</option>
+					<option value="Postcode3">Postcode3</option>
+					<option value="Postcode4">Postcode4</option>
+					<option value="Neighborhood">Neighborhood</option>
+					<option value="PopulatedPlace">PopulatedPlace</option>
+				</select></br>
+				<div id="MapButtonMessage"></div>
+			</div>
+			<div id="routingSection"  style='width: 350px; float: left; height: 400;'>
+				Waypoints for Routing</br>
+				<select id="waypointSelect" size="5" style='width: 350px; '></br>
+				
+				</select>
+			</div>
+			<div style="float: left; height: 400;">
+				</br>
+				<input type="button" value="^" onclick="changeWPOrder('up');" />
+				</br>
+				<input type="button" value="Generate Route" onclick="generateRoute()" />
+				</br>
+				<input type="button" value="Remove Waypoint" onclick="removeWaypoint()" />
+				</br>
+				<input type="button" value="v" onclick="changeWPOrder('down');" />
+			</div>
+			<div style="float: left; height: 400;">
+				</br>
+				Route type: 
+				<select id="dropdownRouteType">
+					<option value="driving">Driving</option>
+					<option value="transit">Transit</option>
+					<option value="walking">Walking</option>
+				</select></br>
+				      
+				Optimization: 
+				<select id="dropdownRouteOptimization">
+					<option value="shortestTime">Time</option>
+					<option value="shortestDistance">Distance</option>
+					<option value="minimizeMoney">Minimize Money (Transit)</option>
+					<option value="minimizeTransfers">Minimize Transfers (Transit)</option>
+					<option value="minimizeWalking">Minimize Walking (Transit)</option>
+				</select></br>
+				      
+				Avoidance: 
+				<select id="dropdownRouteAvoidance">
+					<option value="none">None</option>
+					<option value="minimizeLimitedAccessHighway">Minimize Limited Access Highways</option>
+					<option value="minimizeToll">Minimize Toll</option>
+					<option value="avoidLimitedAccessHighway">Avoid Limited Access Highways</option>
+					<option value="avoidToll">Avoid Toll</option>
+					<option value="avoidExpressTrain">Avoid Express Train (Transit)</option>
+					<option value="avoidAirline">Avoid Airline (Transit)</option>
+					<option value="avoidBulletTrain">Avoid Bullet Train (Transit)</option>
+				</select>
+			</div>
+		</div>
+		
+		<div id='myMap' style='width: 798px; height: 65vh; float:left;'></div>
+		<div id="output" style='width: 398px; height: 65vh; border:1px solid #ccc; overflow:auto; float:left; display:none;'></div>
+		
+	  </div>
+	  <div id="GeocodeOverride" style="display:none;">
+		This section allows you to geocode addresses one at a time. Unlike the other geocoding section it also has an override mechanism, which checks a list of pre-defined entities. If there is a match against the input in the list, the logic will pull it up instead of geocoding the input. Check the var overrideValues in the source code to see how it's done.</br></br>
+		<input type="text" size="35" id="GeocodeOverrideInput" name="GeocodeOverrideInput" value="Nairobi" />
+		<input type="button" value="Geocode" onclick="geocodeWithOverride()" id="GeocodeOverrideButton" /></br>
+		<div id="overrideList"></div></br>
+		<textarea id="outputBoxOverride" cols="200" rows="20" wrap='off' value="" ></textarea>
+	  </div>
+   </body>
+</html>
