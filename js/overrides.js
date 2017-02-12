@@ -1,5 +1,5 @@
 	 //The following item is your json object that stores your override results in the "Geocode Overrider" section. Adhere to the standard below. If a field does not have a value for your ovirriding entity, leave it as ""
-	  overrideValues = { 
+	  var overrideValues = { 
 		"NAIROBI": { 
 			totalResults: 2, 
 			resources:[
